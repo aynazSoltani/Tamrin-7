@@ -1,108 +1,122 @@
-import java.util.ArrayList;
-import java.util.List;
-import java.util.SplittableRandom;
+import java.util.*;
 
 public class SmartHomeSystem {
-    private List<Device> devices;
-    private List<Rule> rules;
+    private final Map<String, Device> devices = new LinkedHashMap<>();
+    private final List<Rule> rules = new ArrayList<>();
 
-    public SmartHomeSystem() {
-        devices = new ArrayList<>();
-        rules = new ArrayList<>();
-    }
-
-    public void addDevice(Device device) {
-        devices.add(device);
-    }
-
-    public void addRule(Rule rule) {
-        rules.add(rule);
-    }
-
-    public void listDevices() {
-        for (Device device : devices) {
-            String statusTxt = "off";
-            if (device.getStatus()) {
-                statusTxt = "on";
-            }
-            System.out.println(device.getName() + " " + device.getType() + " " + statusTxt);
+    public String addDevice(String type, String name, String protocol) {
+        if (!type.equals("light") && !type.equals("thermostat")) {
+            return "invalid input";
         }
-    }
 
-    public void checkRules(String ruleTime) {
-        for (Rule rule : rules) {
-            if (rule.getTime().equals(ruleTime)) {
-                System.out.println(rule.getDeviceName() + " " + rule.getAction());
-            }
+        if (!protocol.equals("WiFi") && !protocol.equals("Bluetooth")) {
+            return "invalid input";
         }
-    }
 
-    public void addDevice(String type, String name, String protocol) throws InvalidPropertyException {
-        for (Device device : devices) {
-            if (device.getName().equals(name)) {
-                throw new InvalidPropertyException("duplicate device name");
-            }
+        if (!name.matches("[a-z0-9]{1,20}")) {
+            return "invalid input";
         }
-        if ((!type.equals("light") && !type.equals("thermostat")) || (!protocol.equals("WiFi") && !protocol.equals("Bluetooth"))) {
-            throw new InvalidPropertyException("invalid input");
-        }
+
+        if (devices.containsKey(name)) return "duplicate device name";
+
+        Device device;
         if (type.equals("light")) {
-            devices.add(new Light(name, protocol));
-        } else if (type.equals("thermostat")) {
-            devices.add(new Thermostat(name, protocol));
-        }
-        System.out.println("device added successfully");
-    }
-
-    public void setDevice(String name, String property, String valueStr) throws InvalidPropertyException {
-        Device foundDevice = null;
-        for (Device device : devices) {
-            if (device.getName().equals(name)) {
-                foundDevice = device;
-                break;
-            }
-        }
-
-        if (foundDevice == null) {
-            throw new InvalidPropertyException("device not found");
-        }
-
-        if (property.equals("status")) {
-            boolean statusValue;
-            if (valueStr.equals("on")) {
-                statusValue = true;
-            } else if (valueStr.equals("off")) {
-                statusValue = false;
-            }
-            else {
-                throw new InvalidPropertyException("invalid status");
-            }
-            foundDevice.setStatus(statusValue);
+            device = new Light(name, protocol);
         } else {
-            int value;
-            try {
-                value = Integer.parseInt(valueStr);
-            } catch (NumberFormatException e) {
-                throw new InvalidPropertyException("invalid value");
-            }
-            foundDevice.setProperty(property, value);
+            device = new Thermostat(name, protocol);
         }
 
-        System.out.println("device updated successfully");
+        devices.put(name, device);
+        return "device added successfully";
     }
-   public void   removeDevice(String name) throws InvalidPropertyException{
-        Device numberOfRemove = null ;
-        for (Device device : devices){
-           if(device.getName().equals(name)){
-               numberOfRemove = device ;
-               break;
-           }
-        }
-       if(numberOfRemove == null){
-           throw  new InvalidPropertyException("device not found");
-       }
-      devices.remove(numberOfRemove) ;
-       System.out.println("device removed successfully");
-   }
-}
 
+    public String setDevice(String name, String property, String value) throws InvalidPropertyException {
+        Device device = devices.get(name);
+        if (device == null) return "device not found";
+
+        if (device instanceof Light) {
+            ((Light) device).setProperty(property, value);
+        } else if (device instanceof Thermostat) {
+            ((Thermostat) device).setProperty(property, value);
+        } else {
+            throw new InvalidPropertyException("invalid property");
+        }
+
+        return "device updated successfully";
+    }
+
+    public String removeDevice(String name) {
+        if (!devices.containsKey(name)) return "device not found";
+
+        devices.remove(name);
+        rules.removeIf(r -> r.getDeviceName().equals(name));
+        return "device removed successfully";
+    }
+
+    public String listDevices(boolean detailed) {
+        if (devices.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+
+        List<Device> reverseDevices = new ArrayList<>(devices.values());
+        Collections.reverse(reverseDevices);
+        for (Device d : reverseDevices) {
+            sb.append(d.getInfo()).append("\n");
+        }
+        return sb.toString().trim();
+    }
+
+    public String addRule(Rule rule) {
+        if (!devices.containsKey(rule.getDeviceName())) return "device not found";
+        if (!rule.getAction().equals("on") && !rule.getAction().equals("off")) return "invalid action";
+        if (!rule.getTime().matches("\\d{2}:\\d{2}") || !isValidTime(rule.getTime())) return "invalid time";
+
+        for (Rule r : rules) {
+            if (r.getDeviceName().equals(rule.getDeviceName()) && r.getTime().equals(rule.getTime())) {
+                return "duplicate rule";
+            }
+        }
+
+        rules.add(rule);
+        return "rule added successfully";
+    }
+
+    public String checkRules(String time) {
+        if (!time.matches("\\d{2}:\\d{2}") || !isValidTime(time)) return "invalid time";
+
+        for (Rule rule : rules) {
+            if (rule.getTime().equals(time)) {
+                Device d = devices.get(rule.getDeviceName());
+                if (d != null) {
+                    try {
+                        d.setStatus(rule.getAction());
+                    } catch (InvalidPropertyException ignored) {}
+                }
+            }
+        }
+
+        return "rules checked";
+    }
+
+    public String listRules() {
+        if (rules.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+
+        List<Rule> reverseRules = new ArrayList<>(rules);
+        Collections.reverse(reverseRules);
+        for (Rule r : reverseRules) {
+            sb.append(r.getInfo()).append("\n");
+        }
+        return sb.toString().trim();
+    }
+
+    private boolean isValidTime(String time) {
+        try {
+            String[] parts = time.split(":");
+            int h = Integer.parseInt(parts[0]);
+            int m = Integer.parseInt(parts[1]);
+            return h >= 0 && h < 24 && m >= 0 && m < 60;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+}

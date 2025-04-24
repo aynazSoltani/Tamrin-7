@@ -1,13 +1,14 @@
 public class Rule {
-    private String deviceName ;
-    private  String time ;
-    private  String action ;
+    private String deviceName;
+    private String time;
+    private String action;
 
-    public Rule ( String deviceName , String time ,String action){
-        this.deviceName = deviceName ;
-        this.time = time ;
-        this.action = action ;
+    public Rule(String deviceName, String time, String action) {
+        this.deviceName = deviceName;
+        this.time = time;
+        this.action = action;
     }
+
     public String getDeviceName() {
         return deviceName;
     }
@@ -19,5 +20,8 @@ public class Rule {
     public String getAction() {
         return action;
     }
-}
 
+    public String getInfo() {
+        return deviceName + " " + time + " " + action;
+    }
+}

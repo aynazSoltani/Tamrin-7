@@ -1,4 +1,4 @@
-public class InvalidPropertyException extends RuntimeException {
+public class InvalidPropertyException extends Exception {
     public InvalidPropertyException(String message) {
         super(message);
     }
